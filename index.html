@@ -186,7 +186,7 @@
 
   // === Supabase 설정 ===
   var SUPABASE_URL = "https://xetzgpvyiwnwuzhephpl.supabase.co";
-  var SUPABASE_ANON_KEY = "PASTE_ANON_KEY_HERE";   // <-- anon public 키를 여기에 붙여넣기
+  var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhldHpncHZ5aXdud3V6aGVwaHBsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDQxNzUsImV4cCI6MjA5NTM4MDE3NX0.TCX-_CSZHhhkXboIuVi0GZfbybKmomh7q9ZsAMAx--c";
   var sb = (window.supabase && SUPABASE_ANON_KEY !== "PASTE_ANON_KEY_HERE")
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
