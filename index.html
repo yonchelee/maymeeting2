@@ -181,6 +181,8 @@
 
   var TARGET = 5.27;            // 목표 시간(초)
   var STORAGE_KEY = "stop527_scores_v1";
+  var LOCK_KEY = "stop527_played_v1";   // 기기당 1회 플레이 잠금
+  var IS_ADMIN = /[?&]admin\b/.test(location.search);  // ?admin 으로 접속 시 진행자 모드
 
   var nameInput  = document.getElementById("playerName");
   var display    = document.getElementById("display");
@@ -190,7 +192,7 @@
   var resetBtn   = document.getElementById("resetBtn");
   var boardEl    = document.getElementById("board");
 
-  // state: "idle" | "running" | "done"
+  // state: "idle" | "running" | "locked"
   var state = "idle";
   var startTime = 0;
   var lastEntryId = null;
@@ -203,6 +205,19 @@
   }
   function saveScores(scores) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(scores)); } catch (e) {}
+  }
+
+  function getLock() {
+    try {
+      var raw = localStorage.getItem(LOCK_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+  function setLock(entry) {
+    try { localStorage.setItem(LOCK_KEY, JSON.stringify(entry)); } catch (e) {}
+  }
+  function clearLock() {
+    try { localStorage.removeItem(LOCK_KEY); } catch (e) {}
   }
 
   function renderBoard() {
@@ -266,9 +281,22 @@
     actionBtn.textContent = "시작";
     actionBtn.className = "btn btn-start";
     actionBtn.disabled = false;
+    actionBtn.style.display = "";
     nameInput.disabled = false;
+    nameInput.style.display = "";
     setDisplay("0.00", false);
     hint.textContent = "이름을 입력하고 시작하세요.";
+  }
+
+  // 이미 플레이한 기기: 새로고침/재접속해도 잠긴 상태 유지
+  function toLocked(entry) {
+    state = "locked";
+    nameInput.style.display = "none";
+    actionBtn.style.display = "none";
+    setDisplay(entry.time.toFixed(2), false);
+    resultLine.innerHTML = "내 오차 ±" + entry.error.toFixed(2) + "초";
+    hint.innerHTML = "🔒 <b>" + escapeHtml(entry.name) +
+      "</b>님은 이미 참여하셨습니다.<br>1인 1회만 도전할 수 있어요. 결과를 기다려 주세요!";
   }
 
   function startGame() {
@@ -315,22 +343,16 @@
     var scores = loadScores();
     scores.push(entry);
     saveScores(scores);
+    setLock(entry);          // 기기 잠금: 재참가 차단
     renderBoard();
 
-    actionBtn.textContent = "다음 도전";
-    actionBtn.className = "btn btn-start";
+    // 잠깐 결과를 보여준 뒤 잠금 화면으로 전환
+    setTimeout(function () { toLocked(entry); }, 1500);
   }
 
   actionBtn.addEventListener("click", function () {
     if (state === "idle") startGame();
     else if (state === "running") stopGame();
-    else if (state === "done") {
-      nameInput.value = "";
-      lastEntryId = null;
-      toIdle();
-      renderBoard();
-      nameInput.focus();
-    }
   });
 
   // 스페이스바로도 조작 (행사장에서 빠르게)
@@ -341,16 +363,28 @@
     }
   });
 
-  resetBtn.addEventListener("click", function () {
-    if (confirm("순위표의 모든 기록을 삭제할까요?")) {
-      saveScores([]);
-      lastEntryId = null;
-      renderBoard();
-    }
-  });
+  // 진행자(?admin)만 초기화 버튼 노출 — 참가자가 잠금을 못 풀게
+  if (IS_ADMIN) {
+    resetBtn.addEventListener("click", function () {
+      if (confirm("이 기기의 기록과 플레이 잠금을 모두 삭제할까요?")) {
+        saveScores([]);
+        clearLock();
+        lastEntryId = null;
+        toIdle();
+        renderBoard();
+      }
+    });
+  } else {
+    resetBtn.style.display = "none";
+  }
 
-  // init
-  toIdle();
+  // init: 이미 플레이한 기기면 잠금 화면, 아니면 대기 화면
+  var existingLock = getLock();
+  if (existingLock && !IS_ADMIN) {
+    toLocked(existingLock);
+  } else {
+    toIdle();
+  }
   renderBoard();
 })();
 </script>
