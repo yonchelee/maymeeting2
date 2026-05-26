@@ -210,18 +210,35 @@
   var startTime = 0;
   var lastEntryId = null;
 
-  // Supabase에서 상위 점수 조회 (오차 오름차순)
+  // Supabase에서 상위 점수 조회 (오차 오름차순) → { data, error }
   function fetchScores() {
-    if (!sb) return Promise.resolve(null);
+    if (!sb) return Promise.resolve({ data: null, error: null });
     return sb.from("scores")
       .select("id,name,time_sec,error_sec")
       .order("error_sec", { ascending: true })
       .limit(20)
       .then(function (res) {
-        if (res.error) { console.error(res.error); return null; }
-        return res.data;
+        if (res.error) console.error(res.error);
+        return { data: res.data, error: res.error };
       })
-      .catch(function (e) { console.error(e); return null; });
+      .catch(function (e) { console.error(e); return { data: null, error: e }; });
+  }
+
+  // Supabase 에러를 사람이 읽을 수 있는 원인 + 조치로 변환
+  function describeError(err) {
+    var code = (err && err.code) || "";
+    var msg = ((err && err.message) || "").toLowerCase();
+    if (code === "PGRST205" || msg.indexOf("could not find the table") >= 0 ||
+        (msg.indexOf("relation") >= 0 && msg.indexOf("does not exist") >= 0)) {
+      return "순위표 테이블(scores)이 없습니다. Supabase 대시보드 → SQL Editor 에서 supabase_setup.sql 을 실행하세요.";
+    }
+    if (code === "42501" || msg.indexOf("permission denied") >= 0) {
+      return "테이블 접근 권한이 없습니다(RLS/정책). supabase_setup.sql 을 다시 실행하세요.";
+    }
+    if (code === "PGRST301" || code === "401" || msg.indexOf("jwt") >= 0 || msg.indexOf("api key") >= 0) {
+      return "API 키 인증 오류입니다. anon public 키를 확인하세요.";
+    }
+    return "순위표를 불러오지 못했습니다" + (err && err.message ? " (" + err.message + ")" : "") + ". 잠시 후 다시 시도됩니다.";
   }
 
   // 플레이 결과 저장 → 저장된 행(id 포함) 반환
@@ -265,11 +282,12 @@
       showBoardMessage("순위표 서버가 설정되지 않았습니다. (anon 키 확인 필요)");
       return Promise.resolve();
     }
-    return fetchScores().then(function (scores) {
-      if (scores === null) {
-        showBoardMessage("순위표를 불러오지 못했습니다. 잠시 후 다시 시도됩니다.");
+    return fetchScores().then(function (res) {
+      if (res.error || res.data === null) {
+        showBoardMessage(describeError(res.error));
         return;
       }
+      var scores = res.data;
       if (scores.length === 0) {
         showBoardMessage("아직 기록이 없습니다. 첫 도전자가 되어보세요!");
         return;
