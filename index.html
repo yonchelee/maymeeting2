@@ -175,14 +175,21 @@
     </section>
   </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function () {
   "use strict";
 
   var TARGET = 5.27;            // 목표 시간(초)
-  var STORAGE_KEY = "stop527_scores_v1";
   var LOCK_KEY = "stop527_played_v1";   // 기기당 1회 플레이 잠금
   var IS_ADMIN = /[?&]admin\b/.test(location.search);  // ?admin 으로 접속 시 진행자 모드
+
+  // === Supabase 설정 ===
+  var SUPABASE_URL = "https://xetzgpvyiwnwuzhephpl.supabase.co";
+  var SUPABASE_ANON_KEY = "PASTE_ANON_KEY_HERE";   // <-- anon public 키를 여기에 붙여넣기
+  var sb = (window.supabase && SUPABASE_ANON_KEY !== "PASTE_ANON_KEY_HERE")
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
 
   var nameInput  = document.getElementById("playerName");
   var display    = document.getElementById("display");
@@ -197,14 +204,32 @@
   var startTime = 0;
   var lastEntryId = null;
 
-  function loadScores() {
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) { return []; }
+  // Supabase에서 상위 점수 조회 (오차 오름차순)
+  function fetchScores() {
+    if (!sb) return Promise.resolve(null);
+    return sb.from("scores")
+      .select("id,name,time_sec,error_sec")
+      .order("error_sec", { ascending: true })
+      .limit(20)
+      .then(function (res) {
+        if (res.error) { console.error(res.error); return null; }
+        return res.data;
+      })
+      .catch(function (e) { console.error(e); return null; });
   }
-  function saveScores(scores) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(scores)); } catch (e) {}
+
+  // 플레이 결과 저장 → 저장된 행(id 포함) 반환
+  function insertScore(name, timeSec, errorSec) {
+    if (!sb) return Promise.resolve(null);
+    return sb.from("scores")
+      .insert({ name: name, time_sec: timeSec, error_sec: errorSec })
+      .select("id")
+      .single()
+      .then(function (res) {
+        if (res.error) { console.error(res.error); return null; }
+        return res.data;
+      })
+      .catch(function (e) { console.error(e); return null; });
   }
 
   function getLock() {
@@ -220,44 +245,55 @@
     try { localStorage.removeItem(LOCK_KEY); } catch (e) {}
   }
 
-  function renderBoard() {
-    var scores = loadScores();
-    // 오차(error) 오름차순 정렬
-    scores.sort(function (a, b) { return a.error - b.error; });
-
+  function showBoardMessage(msg) {
     boardEl.innerHTML = "";
-    if (scores.length === 0) {
-      var li = document.createElement("li");
-      li.className = "empty";
-      li.style.gridColumn = "1 / -1";
-      li.textContent = "아직 기록이 없습니다. 첫 도전자가 되어보세요!";
-      boardEl.appendChild(li);
+    var li = document.createElement("li");
+    li.className = "empty";
+    li.style.gridColumn = "1 / -1";
+    li.textContent = msg;
+    boardEl.appendChild(li);
+  }
+
+  function renderBoard() {
+    if (!sb) {
+      showBoardMessage("순위표 서버가 설정되지 않았습니다. (anon 키 확인 필요)");
       return;
     }
+    fetchScores().then(function (scores) {
+      if (scores === null) {
+        showBoardMessage("순위표를 불러오지 못했습니다. 잠시 후 다시 시도됩니다.");
+        return;
+      }
+      if (scores.length === 0) {
+        showBoardMessage("아직 기록이 없습니다. 첫 도전자가 되어보세요!");
+        return;
+      }
 
-    scores.slice(0, 12).forEach(function (s, i) {
-      var li = document.createElement("li");
-      if (s.id === lastEntryId) li.className = "me";
+      boardEl.innerHTML = "";
+      scores.slice(0, 12).forEach(function (s, i) {
+        var li = document.createElement("li");
+        if (s.id === lastEntryId) li.className = "me";
 
-      var medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : (i + 1);
+        var medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : (i + 1);
 
-      var rank = document.createElement("div");
-      rank.className = "rank";
-      rank.textContent = medal;
+        var rank = document.createElement("div");
+        rank.className = "rank";
+        rank.textContent = medal;
 
-      var who = document.createElement("div");
-      who.className = "who";
-      who.innerHTML = escapeHtml(s.name) +
-        "<small>멈춘 시간 " + s.time.toFixed(2) + "초</small>";
+        var who = document.createElement("div");
+        who.className = "who";
+        who.innerHTML = escapeHtml(s.name) +
+          "<small>멈춘 시간 " + Number(s.time_sec).toFixed(2) + "초</small>";
 
-      var score = document.createElement("div");
-      score.className = "score";
-      score.textContent = "±" + s.error.toFixed(2) + "초";
+        var score = document.createElement("div");
+        score.className = "score";
+        score.textContent = "±" + Number(s.error_sec).toFixed(2) + "초";
 
-      li.appendChild(rank);
-      li.appendChild(who);
-      li.appendChild(score);
-      boardEl.appendChild(li);
+        li.appendChild(rank);
+        li.appendChild(who);
+        li.appendChild(score);
+        boardEl.appendChild(li);
+      });
     });
   }
 
@@ -333,18 +369,14 @@
       error.toFixed(2) + "초</span>" + praise;
     hint.textContent = "기록이 순위표에 등록되었습니다.";
 
-    var entry = {
-      id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
-      name: nameInput.value.trim(),
-      time: elapsed,
-      error: error
-    };
-    lastEntryId = entry.id;
-    var scores = loadScores();
-    scores.push(entry);
-    saveScores(scores);
-    setLock(entry);          // 기기 잠금: 재참가 차단
-    renderBoard();
+    var entry = { name: nameInput.value.trim(), time: elapsed, error: error };
+    setLock(entry);          // 기기 잠금: 재참가 차단 (서버 저장 실패와 무관하게)
+
+    // 서버에 기록 저장 → 통합 순위표 반영
+    insertScore(entry.name, elapsed, error).then(function (row) {
+      if (row) lastEntryId = row.id;   // 내 기록 강조용
+      renderBoard();
+    });
 
     // 잠깐 결과를 보여준 뒤 잠금 화면으로 전환
     setTimeout(function () { toLocked(entry); }, 1500);
@@ -365,9 +397,9 @@
 
   // 진행자(?admin)만 초기화 버튼 노출 — 참가자가 잠금을 못 풀게
   if (IS_ADMIN) {
+    resetBtn.textContent = "이 기기 잠금 해제";
     resetBtn.addEventListener("click", function () {
-      if (confirm("이 기기의 기록과 플레이 잠금을 모두 삭제할까요?")) {
-        saveScores([]);
+      if (confirm("이 기기의 플레이 잠금을 해제할까요? (서버 순위표는 그대로 유지됩니다)")) {
         clearLock();
         lastEntryId = null;
         toIdle();
@@ -386,6 +418,18 @@
     toIdle();
   }
   renderBoard();
+
+  // 모든 폰에서 통합 순위표가 최신으로 보이도록 갱신
+  if (sb) {
+    // 실시간: 새 기록이 들어오면 즉시 갱신
+    sb.channel("scores-live")
+      .on("postgres_changes",
+          { event: "INSERT", schema: "public", table: "scores" },
+          function () { renderBoard(); })
+      .subscribe();
+    // 보조: 실시간 누락 대비 10초마다 갱신
+    setInterval(renderBoard, 10000);
+  }
 })();
 </script>
 </body>
