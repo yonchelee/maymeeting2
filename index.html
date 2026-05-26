@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>5.27초 멈추기 — 월례회 챌린지</title>
+<style>
+  :root {
+    --bg: #0f1226;
+    --card: #1b1f3b;
+    --accent: #ffd54a;
+    --accent2: #6c8cff;
+    --good: #46d39a;
+    --bad: #ff6b6b;
+    --text: #f4f6ff;
+    --muted: #9aa0c3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    background: radial-gradient(1200px 800px at 50% -10%, #2a2f5e 0%, var(--bg) 60%);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 28px 16px 60px;
+  }
+  .wrap {
+    width: 100%;
+    max-width: 960px;
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 22px;
+  }
+  @media (max-width: 760px) {
+    .wrap { grid-template-columns: 1fr; }
+  }
+  header {
+    grid-column: 1 / -1;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  header h1 {
+    font-size: clamp(28px, 5vw, 44px);
+    letter-spacing: -1px;
+  }
+  header h1 .num { color: var(--accent); }
+  header p { color: var(--muted); margin-top: 8px; font-size: 15px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 18px;
+    padding: 26px 24px;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+  }
+
+  .name-row { display: flex; gap: 10px; margin-bottom: 22px; }
+  .name-row input {
+    flex: 1;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: #11142b;
+    color: var(--text);
+    font-size: 16px;
+    outline: none;
+  }
+  .name-row input:focus { border-color: var(--accent2); }
+
+  .stage {
+    text-align: center;
+    padding: 30px 10px 24px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(108,140,255,0.08), rgba(108,140,255,0));
+    margin-bottom: 20px;
+  }
+  .target { color: var(--muted); font-size: 15px; }
+  .target b { color: var(--accent); font-size: 19px; }
+  .display {
+    font-size: clamp(52px, 14vw, 96px);
+    font-weight: 800;
+    letter-spacing: -2px;
+    margin: 14px 0 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .display.hidden-run { color: var(--accent2); }
+  .display .unit { font-size: 0.4em; color: var(--muted); margin-left: 6px; }
+  .hint { color: var(--muted); font-size: 14px; min-height: 20px; }
+  .result-line { font-size: 16px; min-height: 24px; margin-top: 6px; }
+  .result-line .err-good { color: var(--good); font-weight: 700; }
+  .result-line .err-bad { color: var(--bad); font-weight: 700; }
+
+  .btn {
+    width: 100%;
+    padding: 18px;
+    font-size: 20px;
+    font-weight: 700;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: transform .05s ease, filter .15s ease;
+    color: #14162c;
+  }
+  .btn:active { transform: translateY(2px); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-start { background: var(--accent); }
+  .btn-stop { background: var(--bad); color: #fff; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid rgba(255,255,255,0.14);
+    font-size: 14px;
+    padding: 10px;
+    width: auto;
+  }
+
+  .board-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px;
+  }
+  .board-head h2 { font-size: 20px; }
+  .board { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .board li {
+    display: grid;
+    grid-template-columns: 38px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: #14172f;
+    border-radius: 11px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .board li.me { border-color: var(--accent); background: #1d2142; }
+  .board .rank { font-weight: 800; font-size: 18px; color: var(--muted); text-align: center; }
+  .board li:nth-child(1) .rank { color: #ffd54a; }
+  .board li:nth-child(2) .rank { color: #cdd3e8; }
+  .board li:nth-child(3) .rank { color: #e0a96d; }
+  .board .who { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .board .who small { display:block; color: var(--muted); font-weight: 400; font-size: 12px; }
+  .board .score { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .empty { color: var(--muted); text-align: center; padding: 30px 0; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1><span class="num">5.27</span>초 멈추기</h1>
+      <p>화면을 보지 말고 감으로! 정확히 <b>5.27초</b>에 멈추세요. 오차가 가장 작은 사람이 우승 🏆</p>
+    </header>
+
+    <!-- GAME PANEL -->
+    <section class="card">
+      <div class="name-row">
+        <input id="playerName" type="text" placeholder="플레이어 이름" maxlength="16" autocomplete="off" />
+      </div>
+
+      <div class="stage">
+        <div class="target">목표: <b>5.27</b> 초</div>
+        <div id="display" class="display">0.00<span class="unit">초</span></div>
+        <div id="hint" class="hint">이름을 입력하고 시작하세요.</div>
+        <div id="resultLine" class="result-line"></div>
+      </div>
+
+      <button id="actionBtn" class="btn btn-start">시작</button>
+    </section>
+
+    <!-- LEADERBOARD PANEL -->
+    <section class="card">
+      <div class="board-head">
+        <h2>🏆 순위표</h2>
+        <button id="resetBtn" class="btn btn-ghost">기록 초기화</button>
+      </div>
+      <ul id="board" class="board"></ul>
+    </section>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  var TARGET = 5.27;            // 목표 시간(초)
+  var STORAGE_KEY = "stop527_scores_v1";
+
+  var nameInput  = document.getElementById("playerName");
+  var display    = document.getElementById("display");
+  var hint       = document.getElementById("hint");
+  var resultLine = document.getElementById("resultLine");
+  var actionBtn  = document.getElementById("actionBtn");
+  var resetBtn   = document.getElementById("resetBtn");
+  var boardEl    = document.getElementById("board");
+
+  // state: "idle" | "running" | "done"
+  var state = "idle";
+  var startTime = 0;
+  var lastEntryId = null;
+
+  function loadScores() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+  function saveScores(scores) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(scores)); } catch (e) {}
+  }
+
+  function renderBoard() {
+    var scores = loadScores();
+    // 오차(error) 오름차순 정렬
+    scores.sort(function (a, b) { return a.error - b.error; });
+
+    boardEl.innerHTML = "";
+    if (scores.length === 0) {
+      var li = document.createElement("li");
+      li.className = "empty";
+      li.style.gridColumn = "1 / -1";
+      li.textContent = "아직 기록이 없습니다. 첫 도전자가 되어보세요!";
+      boardEl.appendChild(li);
+      return;
+    }
+
+    scores.slice(0, 12).forEach(function (s, i) {
+      var li = document.createElement("li");
+      if (s.id === lastEntryId) li.className = "me";
+
+      var medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : (i + 1);
+
+      var rank = document.createElement("div");
+      rank.className = "rank";
+      rank.textContent = medal;
+
+      var who = document.createElement("div");
+      who.className = "who";
+      who.innerHTML = escapeHtml(s.name) +
+        "<small>멈춘 시간 " + s.time.toFixed(2) + "초</small>";
+
+      var score = document.createElement("div");
+      score.className = "score";
+      score.textContent = "±" + s.error.toFixed(2) + "초";
+
+      li.appendChild(rank);
+      li.appendChild(who);
+      li.appendChild(score);
+      boardEl.appendChild(li);
+    });
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function setDisplay(value, running) {
+    display.textContent = value;
+    var unit = document.createElement("span");
+    unit.className = "unit";
+    unit.textContent = "초";
+    display.appendChild(unit);
+    display.classList.toggle("hidden-run", !!running);
+  }
+
+  function toIdle() {
+    state = "idle";
+    actionBtn.textContent = "시작";
+    actionBtn.className = "btn btn-start";
+    actionBtn.disabled = false;
+    nameInput.disabled = false;
+    setDisplay("0.00", false);
+    hint.textContent = "이름을 입력하고 시작하세요.";
+  }
+
+  function startGame() {
+    var name = nameInput.value.trim();
+    if (!name) {
+      hint.textContent = "먼저 이름을 입력해주세요!";
+      nameInput.focus();
+      return;
+    }
+    state = "running";
+    startTime = performance.now();
+    nameInput.disabled = true;
+    actionBtn.textContent = "멈춤!";
+    actionBtn.className = "btn btn-stop";
+    resultLine.innerHTML = "";
+    // 시간 숨김: 흐르는 동안 숫자 안 보여줌
+    setDisplay("●●●", true);
+    hint.textContent = "감으로 5.27초를 세고 멈추세요. (숫자는 가려져 있어요)";
+  }
+
+  function stopGame() {
+    state = "done";
+    var elapsed = (performance.now() - startTime) / 1000;
+    var error = Math.abs(elapsed - TARGET);
+
+    setDisplay(elapsed.toFixed(2), false);
+
+    var cls = error <= 0.10 ? "err-good" : error <= 0.50 ? "" : "err-bad";
+    var praise = error <= 0.03 ? " 🎯 완벽!"
+               : error <= 0.10 ? " 👏 대단해요!"
+               : error <= 0.30 ? " 👍 좋아요!"
+               : "";
+    resultLine.innerHTML = "오차 <span class='" + cls + "'>±" +
+      error.toFixed(2) + "초</span>" + praise;
+    hint.textContent = "기록이 순위표에 등록되었습니다.";
+
+    var entry = {
+      id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+      name: nameInput.value.trim(),
+      time: elapsed,
+      error: error
+    };
+    lastEntryId = entry.id;
+    var scores = loadScores();
+    scores.push(entry);
+    saveScores(scores);
+    renderBoard();
+
+    actionBtn.textContent = "다음 도전";
+    actionBtn.className = "btn btn-start";
+  }
+
+  actionBtn.addEventListener("click", function () {
+    if (state === "idle") startGame();
+    else if (state === "running") stopGame();
+    else if (state === "done") {
+      nameInput.value = "";
+      lastEntryId = null;
+      toIdle();
+      renderBoard();
+      nameInput.focus();
+    }
+  });
+
+  // 스페이스바로도 조작 (행사장에서 빠르게)
+  document.addEventListener("keydown", function (e) {
+    if (e.code === "Space" && document.activeElement !== nameInput) {
+      e.preventDefault();
+      actionBtn.click();
+    }
+  });
+
+  resetBtn.addEventListener("click", function () {
+    if (confirm("순위표의 모든 기록을 삭제할까요?")) {
+      saveScores([]);
+      lastEntryId = null;
+      renderBoard();
+    }
+  });
+
+  // init
+  toIdle();
+  renderBoard();
+})();
+</script>
+</body>
+</html>
