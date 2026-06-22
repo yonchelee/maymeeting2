@@ -1,0 +1,22 @@
+name: Verify Supabase ranking
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/friendly-feynman-AhRHH"]
+    paths:
+      - ".github/workflows/verify-supabase.yml"
+      - "scripts/verify-supabase.mjs"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install supabase-js
+        run: npm install --no-save --silent @supabase/supabase-js@2
+      - name: Run verification
+        run: node scripts/verify-supabase.mjs
