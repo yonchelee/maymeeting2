@@ -18,5 +18,7 @@ jobs:
           node-version: "22"
       - name: Install supabase-js
         run: npm install --no-save --silent @supabase/supabase-js@2
+      - name: Diagnose Supabase reachability
+        run: node scripts/diagnose-supabase.mjs
       - name: Run verification
         run: node scripts/verify-supabase.mjs
