@@ -228,6 +228,13 @@
   function describeError(err) {
     var code = (err && err.code) || "";
     var msg = ((err && err.message) || "").toLowerCase();
+    var details = ((err && err.details) || "").toLowerCase();
+    var both = msg + " " + details;
+    if (both.indexOf("enotfound") >= 0 || both.indexOf("err_name_not_resolved") >= 0 ||
+        msg === "typeerror: fetch failed" || msg === "failed to fetch" ||
+        both.indexOf("networkerror") >= 0) {
+      return "Supabase 프로젝트에 연결할 수 없습니다(URL 응답 없음). 대시보드에서 프로젝트가 일시정지/삭제됐는지 확인해 주세요.";
+    }
     if (code === "PGRST205" || msg.indexOf("could not find the table") >= 0 ||
         (msg.indexOf("relation") >= 0 && msg.indexOf("does not exist") >= 0)) {
       return "순위표 테이블(scores)이 없습니다. Supabase 대시보드 → SQL Editor 에서 supabase_setup.sql 을 실행하세요.";
